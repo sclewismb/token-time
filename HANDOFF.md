@@ -27,11 +27,14 @@ state = { matilda: { days: { "0": { jobs:{id:true|number}, treat:bool, hours:num
 ```
 - Day index 0 to 6, Monday to Sunday. `fix()` normalizes missing fields; `peek()` reads without creating days; `dd()` reads and creates.
 - Totals: `earnedDay`, `spentDay`, `totals(kid)` (earned, spent, left).
-- Persistence: always mirrored to `localStorage` under `tt-<kid>-<weekStartISO>` and `tt-kid`.
-- On claude.ai the page also syncs through the artifact `db` capability: doc path `tokens/<kid>-<weekStartISO>`, `set()` on every change (queued, one write at a time) and `onSnapshot` to pull changes. Snapshots are ignored for 3 seconds after a local write and while writes are pending, to stop stale echoes overwriting new taps.
+- Persistence: always mirrored to `localStorage` under `tt-<kid>-<weekStartISO>`, `tt-kid` and `tt-family`.
+- Sync (added Nov 16, 2026, replacing the claude.ai `db` sync): Firebase Firestore, doc `families/<family code>/weeks/<kid>-<weekStartISO>`. `save()` diffs the state against the last synced copy and sends only changed leaf fields with `updateDoc` (FieldPath segments), so two people tapping different jobs don't clobber each other. `onSnapshot` replaces local state with the doc (Firestore includes pending local writes, so no echo guard is needed). Offline cache is IndexedDB via `persistentLocalCache`.
+- The family code is a 32-character random secret, read from `#family=` in the URL or pasted via the sync label, and stored in `localStorage`. It is not in the repo; the full link is in the git-ignored `family-link.txt`. `firestore.rules` only allows get/list/create/update under a code of 20+ characters, with kid-week doc names and a `days` map. No deletes.
+- The manifest has no `start_url` on purpose, so an iPhone saved to the home screen from the family link keeps the code.
+- The app reloads when it returns to the foreground on a new day, so the week resets even if it was never closed.
 
 ## Known issues and decisions
-- Outside claude.ai there is no `window.claude`, so `connect()` does nothing and data is per-browser only. Two iPads will not sync. Fixing that needs a small backend or a hosted DB (for example Firebase, Supabase or a tiny serverless function); the `save()` and `connect()` functions are the only places to change.
+- Sync code is written but `FIREBASE` is still `null`: the Firebase project is not created yet (it needs the owner's Google sign-in). Until then the sync label is hidden and data is per-browser only. Sync has not been tested between two devices yet.
 - An early bug (only the first tap responded) was most likely the db returning day objects without `jobs`, which made render throw. Fixed by `fix()` and `peek()`, plus the snapshot guard. It was not reproduced or confirmed on a device, so test taps across several jobs after any change.
 - The "From Mom and Dad" section has no parent lock. The kids can tap it. A simple PIN gate would fix that if wanted.
 - Manifest and icons added Nov 16, 2026 (`manifest.webmanifest`, `icons/`: coin-with-star on the Matilda purple, 32/180/192/512 px, the 512 doubles as maskable). Not yet tested on a real iPad home screen.
@@ -44,7 +47,7 @@ state = { matilda: { days: { "0": { jobs:{id:true|number}, treat:bool, hours:num
 - Source of truth for the rules, in plain language: the project doc `token-jobs.md` in the claude.ai Project "Kids tokens".
 
 ## Suggested next steps
-1. Push the local git repo to GitHub and turn on Pages (steps in README.md).
-2. Add to the iPad home screen from Safari and confirm the icon and full-screen launch.
-3. Decide whether cross-device sync matters; if so, add a small backend and replace `save()` and `connect()`.
+1. Done: hosted at https://sclewismb.github.io/token-time/ from github.com/sclewismb/token-time.
+2. Create the Firebase project (Spark plan, no billing): web app, Firestore database in `nam5`, publish `firestore.rules`, paste the web config into `FIREBASE`.
+3. Test sync with two browser tabs on the family link, then push and open the family link on each device before adding it to the home screen.
 4. Optional: parent PIN for the "From Mom and Dad" section, a weekly history view, and sounds or an animation when a treat or iPad hour is bought.

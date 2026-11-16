@@ -2,7 +2,6 @@
   "name": "Token Time",
   "short_name": "Token Time",
   "description": "Weekly token tracker for Matilda and Brooks.",
-  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

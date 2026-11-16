@@ -1,0 +1,4 @@
+# The family link holds the secret sync code. Keep it out of the public repo.
+family-link.txt
+.firebase/
+firebase-debug.log

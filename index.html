@@ -97,6 +97,10 @@ h2{margin:6px 2px 0;font-family:var(--display);font-weight:600;font-size:24px}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .pop{position:fixed;z-index:10;pointer-events:none;font-family:var(--display);font-weight:700;font-size:30px;color:var(--coin-deep);text-shadow:0 2px 0 #fff;animation:rise .8s ease-out forwards}
 @keyframes rise{from{opacity:1;transform:translateY(0) scale(.8)}to{opacity:0;transform:translateY(-70px) scale(1.3)}}
+.sync{align-self:center;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);padding:6px 12px;border-radius:14px}
+.sync::before{content:"";width:10px;height:10px;border-radius:50%;background:#b8bfd8}
+.sync.on::before{background:var(--done)}
+.sync.off::before,.sync.wait::before{background:var(--coin)}
 @media (prefers-reduced-motion:reduce){.pop{animation:none;opacity:0}.bar i,.toast{transition:none}}
 @media (max-width:420px){.card .txt{font-size:16.5px}.day{font-size:14px}.jar h1{font-size:24px}}
 </style>
@@ -107,6 +111,7 @@ h2{margin:6px 2px 0;font-family:var(--display);font-weight:600;font-size:24px}
   <section class="jar" id="jar" aria-live="polite"></section>
   <nav class="days" id="days" aria-label="Day of the week"></nav>
   <main id="main"></main>
+  <button class="sync" id="sync" type="button"></button>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -162,36 +167,82 @@ function earnedDay(k,i){var d=peek(k,i),t=d.extra; JOBS.forEach(function(j){if(a
 function spentDay(k,i){var d=peek(k,i); return (d.treat?TREAT:0)+d.hours*HOUR;}
 function totals(k){var e=0,s=0; for(var i=0;i<7;i++){e+=earnedDay(k,i); s+=spentDay(k,i);} return {e:e,s:s,left:e-s};}
 
-/* ---------- saving (shared across devices when available) ---------- */
-var db=null, chain=Promise.resolve(), pending={matilda:0,brooks:0}, lastWrite={matilda:0,brooks:0};
-function path(k){return 'tokens/'+k+'-'+weekKey;}
+/* ---------- saving: Firebase Firestore keeps every phone and iPad in step ----------
+   Data lives at families/<family code>/weeks/<kid>-<week start>. The family code is a long
+   random secret that is never in this file: each device gets it once from the family link
+   (…/#family=CODE) or by tapping the sync label and pasting it. */
+var FIREBASE=null; // web app config from the Firebase console
+var SDK='https://www.gstatic.com/firebasejs/10.14.1/';
+var FAMILY=null;
+function readFamily(s){var m=/(?:family=)?([A-Za-z0-9_-]{20,})\s*$/.exec(s||''); return m?m[1]:null;}
+(function(){
+  var h=/[#&]family=([A-Za-z0-9_-]{20,})/.exec(location.hash);
+  try{ if(h) localStorage.setItem('tt-family',h[1]); FAMILY=h?h[1]:localStorage.getItem('tt-family'); }catch(e){ FAMILY=h?h[1]:null; }
+})();
+var F=null, refs={}, synced={matilda:null,brooks:null};
+function clone(o){return JSON.parse(JSON.stringify(o));}
+function leaves(o,pre,out){
+  Object.keys(o||{}).forEach(function(key){var v=o[key], p=pre.concat(key);
+    if(v&&typeof v==='object') leaves(v,p,out); else out[p.join('\u0001')]=v;});
+  return out;
+}
+function setSync(s){
+  var el=document.getElementById('sync'); if(!el) return;
+  el.className='sync '+s;
+  el.textContent={on:'Live on all devices',off:'Offline, will sync when back online',none:'Only on this device · tap to link',wait:'Connecting…'}[s];
+}
 function save(k){
-  lastWrite[k]=Date.now();
   try{localStorage.setItem('tt-'+k+'-'+weekKey,JSON.stringify(state[k]));}catch(e){}
-  if(!db) return;
-  var copy=JSON.parse(JSON.stringify(state[k]));
-  pending[k]++;
-  chain=chain.then(function(){return db.doc(path(k)).set(copy);}).catch(function(){}).then(function(){pending[k]--;});
+  if(!F||!synced[k]) return;
+  // Send only the fields that changed, so two people tapping different jobs never overwrite each other.
+  var now=leaves(state[k],[],{}), was=leaves(synced[k],[],{}), args=[];
+  Object.keys(now).forEach(function(p){ if(was[p]!==now[p]) args.push(new F.FieldPath(...p.split('\u0001')), now[p]); });
+  Object.keys(was).forEach(function(p){ if(!(p in now)) args.push(new F.FieldPath(...p.split('\u0001')), F.deleteField()); });
+  synced[k]=clone(state[k]);
+  if(!args.length) return;
+  var ref=refs[k], full=clone(state[k]);
+  F.updateDoc.apply(null,[ref].concat(args)).catch(function(){ F.setDoc(ref,full,{merge:true}).catch(function(){}); });
 }
 function connect(){
-  if(!window.claude||!window.claude.use) return;
-  window.claude.use('db').then(function(d){
-    if(!d) return; db=d;
+  if(!FIREBASE){ document.getElementById('sync').hidden=true; return; }
+  if(!FAMILY){ setSync('none'); return; }
+  setSync('wait');
+  Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-firestore.js')]).then(function(m){
+    var A=m[0], S=m[1], app=A.initializeApp(FIREBASE), db;
+    try{ db=S.initializeFirestore(app,{localCache:S.persistentLocalCache({tabManager:S.persistentMultipleTabManager()})}); }
+    catch(e){ db=S.getFirestore(app); }
+    F=S;
     ['matilda','brooks'].forEach(function(k){
-      try{
-        db.doc(path(k)).onSnapshot(function(snap){
-          if(pending[k]>0||Date.now()-lastWrite[k]<3000) return;
-          try{
-            var ex=typeof snap.exists==='function'?snap.exists():snap.exists;
-            if(ex===false) return;
-            var v=typeof snap.data==='function'?snap.data():snap;
-            if(v&&v.days&&typeof v.days==='object'){state[k]={days:JSON.parse(JSON.stringify(v.days))}; render();}
-          }catch(e){}
-        });
-      }catch(e){}
+      refs[k]=S.doc(db,'families',FAMILY,'weeks',k+'-'+weekKey);
+      S.onSnapshot(refs[k],{includeMetadataChanges:true},function(snap){
+        setSync(snap.metadata.fromCache?'off':'on');
+        if(!snap.exists()){
+          if(snap.metadata.fromCache) return; // wait for the server before treating the week as new
+          synced[k]=clone(state[k]);
+          S.setDoc(refs[k],clone(state[k]),{merge:true}).catch(function(){});
+          return;
+        }
+        var v=snap.data();
+        state[k]={days:v.days&&typeof v.days==='object'?v.days:{}};
+        synced[k]=clone(state[k]);
+        try{localStorage.setItem('tt-'+k+'-'+weekKey,JSON.stringify(state[k]));}catch(e){}
+        render();
+      },function(){ setSync('off'); });
     });
-  }).catch(function(){});
+  }).catch(function(){ setSync('off'); });
 }
+document.addEventListener('click',function(ev){
+  if(!ev.target.closest('#sync')||!FIREBASE) return;
+  var code=readFamily(prompt('Paste the family link or code to share tokens across devices:'));
+  if(!code) return;
+  try{localStorage.setItem('tt-family',code);}catch(e){}
+  location.hash='family='+code; location.reload();
+});
+// Pick up a new day or week when the app comes back from the background.
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState!=='visible') return;
+  var n=new Date(); if(n.toDateString()!==now.toDateString()) location.reload();
+});
 
 /* ---------- feedback ---------- */
 var toastTimer;

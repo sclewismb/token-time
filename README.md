@@ -13,7 +13,14 @@ See [HANDOFF.md](HANDOFF.md) for the rules, data model and known issues.
 2. Repo Settings → Pages → Source: "Deploy from a branch", branch `main`, folder `/ (root)`.
 3. Open the Pages URL on the iPad in Safari, then Share → Add to Home Screen.
 
-Data is saved per browser (localStorage), so each iPad keeps its own tokens until a sync backend is added.
+## Sync across phones and iPads
+Tokens sync live through Firebase Firestore (free plan). The config goes in `FIREBASE` near the top of the saving section in `index.html`; the database rules are in `firestore.rules`.
+
+Each device joins the family once by opening the family link (`…/token-time/#family=CODE`). The link is kept in `family-link.txt`, which is git-ignored because anyone with the code can see and change the tokens. Never commit it.
+
+On iPhone or iPad: open the family link in Safari first, then Share → Add to Home Screen, so the home screen app keeps the code. If a home screen app ever shows "Only on this device · tap to link", tap that label and paste the link.
+
+Until `FIREBASE` is filled in, data is saved per browser only (localStorage).
 
 ## Run locally
 ```bash
