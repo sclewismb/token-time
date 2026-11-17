@@ -171,7 +171,15 @@ function totals(k){var e=0,s=0; for(var i=0;i<7;i++){e+=earnedDay(k,i); s+=spent
    Data lives at families/<family code>/weeks/<kid>-<week start>. The family code is a long
    random secret that is never in this file: each device gets it once from the family link
    (…/#family=CODE) or by tapping the sync label and pasting it. */
-var FIREBASE=null; // web app config from the Firebase console
+// Firebase web config. Public by design: access is controlled by firestore.rules and the family code.
+var FIREBASE={
+  apiKey:"AIzaSyBvdPNPlLAt8iRVDPizGU9DiKOilWWO5Cg",
+  authDomain:"token-time-f2bfe.firebaseapp.com",
+  projectId:"token-time-f2bfe",
+  storageBucket:"token-time-f2bfe.firebasestorage.app",
+  messagingSenderId:"524550131061",
+  appId:"1:524550131061:web:775cd5dfd9402b9211573c"
+};
 var SDK='https://www.gstatic.com/firebasejs/10.14.1/';
 var FAMILY=null;
 function readFamily(s){var m=/(?:family=)?([A-Za-z0-9_-]{20,})\s*$/.exec(s||''); return m?m[1]:null;}
@@ -237,6 +245,11 @@ document.addEventListener('click',function(ev){
   if(!code) return;
   try{localStorage.setItem('tt-family',code);}catch(e){}
   location.hash='family='+code; location.reload();
+});
+// Opening the family link in a tab that already has the app open: reload to join.
+window.addEventListener('hashchange',function(){
+  var h=/[#&]family=([A-Za-z0-9_-]{20,})/.exec(location.hash);
+  if(h&&h[1]!==FAMILY){ try{localStorage.setItem('tt-family',h[1]);}catch(e){} location.reload(); }
 });
 // Pick up a new day or week when the app comes back from the background.
 document.addEventListener('visibilitychange',function(){

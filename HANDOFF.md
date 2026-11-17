@@ -34,7 +34,9 @@ state = { matilda: { days: { "0": { jobs:{id:true|number}, treat:bool, hours:num
 - The app reloads when it returns to the foreground on a new day, so the week resets even if it was never closed.
 
 ## Known issues and decisions
-- Sync code is written but `FIREBASE` is still `null`: the Firebase project is not created yet (it needs the owner's Google sign-in). Until then the sync label is hidden and data is per-browser only. Sync has not been tested between two devices yet.
+- Firebase project `token-time-f2bfe` (owner's Google account, Spark free plan, Firestore Standard edition, `(default)` database in `nam5`) was set up Nov 16, 2026 and `firestore.rules` is published. Tested with two browser windows on a throwaway family code: taps appeared in the other window within about a second without refreshing, near-simultaneous taps on different jobs were both kept, and the rules denied short codes, other collections, listing families, bad doc names, extra fields and deletes. Not yet tested on real iPhones/iPads.
+- If `firestore.rules` changes, paste it into Firebase console → Firestore → Rules and publish (no CLI is set up).
+- A test doc set exists under `families/synctest-throwaway-0001-abcdefgh` (emptied). It can be deleted from the console.
 - An early bug (only the first tap responded) was most likely the db returning day objects without `jobs`, which made render throw. Fixed by `fix()` and `peek()`, plus the snapshot guard. It was not reproduced or confirmed on a device, so test taps across several jobs after any change.
 - The "From Mom and Dad" section has no parent lock. The kids can tap it. A simple PIN gate would fix that if wanted.
 - Manifest and icons added Nov 16, 2026 (`manifest.webmanifest`, `icons/`: coin-with-star on the Matilda purple, 32/180/192/512 px, the 512 doubles as maskable). Not yet tested on a real iPad home screen.
@@ -48,6 +50,6 @@ state = { matilda: { days: { "0": { jobs:{id:true|number}, treat:bool, hours:num
 
 ## Suggested next steps
 1. Done: hosted at https://sclewismb.github.io/token-time/ from github.com/sclewismb/token-time.
-2. Create the Firebase project (Spark plan, no billing): web app, Firestore database in `nam5`, publish `firestore.rules`, paste the web config into `FIREBASE`.
-3. Test sync with two browser tabs on the family link, then push and open the family link on each device before adding it to the home screen.
+2. Done: Firebase sync is live.
+3. Open the family link on each iPhone/iPad in Safari, then Add to Home Screen, and check a tap shows up on another device.
 4. Optional: parent PIN for the "From Mom and Dad" section, a weekly history view, and sounds or an animation when a treat or iPad hour is bought.
