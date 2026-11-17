@@ -13,8 +13,8 @@ A single-file web app (`index.html`, no build step, no dependencies except Googl
 ## Jobs (see `JOBS` array at the top of the script)
 Fields: `id`, `g` (group: morning, day, night, bonus), `e` (emoji picture), `t` (title), `s` (optional subtitle), `v` (token value), `count` (true = stepper), `only` (kid id) and `days` (0=Mon to 6=Sun).
 
-- Morning (1 each): stay in room until clock is green, get dressed, brush hair, brush teeth (morning), make bed.
-- During the day (1 each): pack backpack, unpack backpack, no fighting, dishes to sink (counter since Nov 16, 2026, 1 per trip; old `true`/`false` values are migrated to 1/0 in `fix()`), clothes in laundry basket, hang up jacket, clean up after each activity (counter, 1 per activity), hockey prep (Matilda only, Sat and Sun: water bottle, equipment in bag, stick).
+- Morning (1 each): stay in room until clock is green, get dressed, brush hair, brush teeth (morning), make bed, pack backpack (moved from During the day on Nov 17, 2026).
+- During the day (1 each): unpack backpack, no fighting, dishes to sink (counter since Nov 16, 2026, 1 per trip; old `true`/`false` values are migrated to 1/0 in `fix()`), clothes in laundry basket, hang up jacket, clean up after each activity (counter, 1 per activity), hockey prep (Matilda only, Sat and Sun: water bottle, equipment in bag, stick).
 - Bedtime (1 each): brush teeth (night), go to bed nicely.
 - Bonus (2 each): garbage bins to curb and back, vacuum, try a new food, help someone else (counter, 2 each time).
 - Special: Brooks only, Fridays: no call from the principal and no school incidents = 5 tokens (id `school`).
