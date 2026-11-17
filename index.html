@@ -128,7 +128,7 @@ var JOBS=[
  {id:'backpack',g:'day',e:'🎒',t:'Pack your backpack',v:1},
  {id:'unpack',g:'day',e:'📚',t:'Unpack your backpack',v:1},
  {id:'fight',g:'day',e:'🤝',t:'No fighting with each other',v:1},
- {id:'dishes',g:'day',e:'🍽️',t:'Bring your dishes to the sink',v:1},
+ {id:'dishes',g:'day',e:'🍽️',t:'Bring your dishes to the sink',s:'1 token every time you bring dishes',v:1,count:true},
  {id:'laundry',g:'day',e:'🧺',t:'Clothes in the laundry basket',v:1},
  {id:'jacket',g:'day',e:'🧥',t:'Hang up your jacket',v:1},
  {id:'cleanup',g:'day',e:'🧸',t:'Clean up after each activity',s:'1 token for every activity you clean up',v:1,count:true},
@@ -158,7 +158,12 @@ try{var lk=localStorage.getItem('tt-kid'); if(lk&&KIDS[lk]) kid=lk;}catch(e){}
 ['matilda','brooks'].forEach(function(k){
   try{var raw=localStorage.getItem('tt-'+k+'-'+weekKey); if(raw){var v=JSON.parse(raw); if(v&&v.days) state[k]=v;}}catch(e){}
 });
-function fix(d){if(!d.jobs) d.jobs={}; if(!d.treat) d.treat=false; d.hours=+d.hours||0; d.extra=+d.extra||0; return d;}
+function fix(d){
+  if(!d.jobs) d.jobs={}; if(!d.treat) d.treat=false; d.hours=+d.hours||0; d.extra=+d.extra||0;
+  // Jobs that became counters (dishes, Nov 2026) may still hold an old checkmark: true -> 1, false -> 0.
+  JOBS.forEach(function(j){ if(j.count&&typeof d.jobs[j.id]==='boolean') d.jobs[j.id]=d.jobs[j.id]?1:0; });
+  return d;
+}
 function dd(k,i){var D=state[k].days; if(!D[i]) D[i]={}; return fix(D[i]);}
 function peek(k,i){return fix(state[k].days[i]||{});}
 function applies(j,k,i){return !j.only||(j.only===k&&j.days.indexOf(i)>-1);}

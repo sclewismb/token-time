@@ -14,7 +14,7 @@ A single-file web app (`index.html`, no build step, no dependencies except Googl
 Fields: `id`, `g` (group: morning, day, night, bonus), `e` (emoji picture), `t` (title), `s` (optional subtitle), `v` (token value), `count` (true = stepper), `only` (kid id) and `days` (0=Mon to 6=Sun).
 
 - Morning (1 each): stay in room until clock is green, get dressed, brush hair, brush teeth (morning), make bed.
-- During the day (1 each): pack backpack, unpack backpack, no fighting, dishes to sink, clothes in laundry basket, hang up jacket, clean up after each activity (counter, 1 per activity), hockey prep (Matilda only, Sat and Sun: water bottle, equipment in bag, stick).
+- During the day (1 each): pack backpack, unpack backpack, no fighting, dishes to sink (counter since Nov 16, 2026, 1 per trip; old `true`/`false` values are migrated to 1/0 in `fix()`), clothes in laundry basket, hang up jacket, clean up after each activity (counter, 1 per activity), hockey prep (Matilda only, Sat and Sun: water bottle, equipment in bag, stick).
 - Bedtime (1 each): brush teeth (night), go to bed nicely.
 - Bonus (2 each): garbage bins to curb and back, vacuum, try a new food, help someone else (counter, 2 each time).
 - Special: Brooks only, Fridays: no call from the principal and no school incidents = 5 tokens (id `school`).
@@ -36,6 +36,7 @@ state = { matilda: { days: { "0": { jobs:{id:true|number}, treat:bool, hours:num
 ## Known issues and decisions
 - Firebase project `token-time-f2bfe` (owner's Google account, Spark free plan, Firestore Standard edition, `(default)` database in `nam5`) was set up Nov 16, 2026 and `firestore.rules` is published. Tested with two browser windows on a throwaway family code: taps appeared in the other window within about a second without refreshing, near-simultaneous taps on different jobs were both kept, and the rules denied short codes, other collections, listing families, bad doc names, extra fields and deletes. Not yet tested on real iPhones/iPads.
 - If `firestore.rules` changes, paste it into Firebase console → Firestore → Rules and publish (no CLI is set up).
+- Monday Nov 16, 2026 entries from the claude.ai version were imported into the real family's Firestore docs (Matilda and Brooks each: earned 15, spent 5 on a treat, 10 left). The earlier `2026-11-09` test week was not imported.
 - A test doc set exists under `families/synctest-throwaway-0001-abcdefgh` (emptied). It can be deleted from the console.
 - An early bug (only the first tap responded) was most likely the db returning day objects without `jobs`, which made render throw. Fixed by `fix()` and `peek()`, plus the snapshot guard. It was not reproduced or confirmed on a device, so test taps across several jobs after any change.
 - The "From Mom and Dad" section has no parent lock. The kids can tap it. A simple PIN gate would fix that if wanted.
