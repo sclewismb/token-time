@@ -126,6 +126,38 @@ body.tiles .card:not(.wide) .step button{width:34px;height:34px;font-size:20px}
 .sync::before{content:"";width:10px;height:10px;border-radius:50%;background:#b8bfd8}
 .sync.on::before{background:var(--done)}
 .sync.off::before,.sync.wait::before{background:var(--coin)}
+/* TV scoreboard: both kids side by side, sized to the screen, read-only. Meant for AirPlay from the iPad. */
+.tvbtn{padding:8px 12px;border-radius:14px;background:var(--card);border:3px solid var(--line);font-size:15px;color:var(--ink)}
+.tv{display:none}
+body.tvmode .wrap{display:none}
+body.tvmode .tv{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;padding:calc(2vmin + env(safe-area-inset-top)) 3vmin 2.5vmin;gap:2vmin}
+.tv-head{display:flex;align-items:center;gap:2vmin;font-family:var(--display);font-weight:600;font-size:4.2vmin}
+.tv-head .tv-day{flex:1}
+.tv-head .sync{font-size:2.4vmin;padding:0}
+.tv-exit{width:6vmin;height:6vmin;border-radius:50%;background:var(--card);border:.4vmin solid var(--line);font-size:3vmin;color:var(--muted)}
+.tv-kids{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:3vmin}
+.tv-kid{--kc:#7a4dff;--ks:#ece5ff;background:var(--card);border:.7vmin solid var(--kc);border-radius:4vmin;padding:2.6vmin 3vmin;display:flex;flex-direction:column;gap:2vmin;min-width:0}
+.tv-kid.brooks{--kc:#0a8fe0;--ks:#dff1ff}
+.tv-name{display:flex;align-items:center;gap:2vmin;font-family:var(--display);font-weight:600;font-size:6.5vmin;line-height:1}
+.tv-av{width:9vmin;height:9vmin;border-radius:50%;background:var(--kc);color:#fff;display:grid;place-items:center;font-size:5.5vmin}
+.tv-coinrow{display:flex;align-items:center;gap:3vmin}
+.tv-coin{flex:none;width:19vmin;height:19vmin;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe27a,var(--coin) 55%,var(--coin-deep));border:1vmin solid #fff3c4;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:11vmin;color:#7a4a00;box-shadow:0 .8vmin 0 rgba(0,0,0,.15)}
+.tv-coin.bump{animation:bump .9s ease-out}
+@keyframes bump{0%{transform:scale(1)}30%{transform:scale(1.18) rotate(-6deg)}60%{transform:scale(.96) rotate(3deg)}100%{transform:scale(1)}}
+.tv-left{font-family:var(--display);font-weight:600;font-size:5vmin;line-height:1.05}
+.tv-left small{display:block;font-family:var(--body);font-weight:700;font-size:2.8vmin;color:var(--muted);margin-top:1vmin}
+.tv-goal{display:flex;flex-direction:column;gap:1vmin;font-size:3vmin}
+.tv-bar{height:2.4vmin;border-radius:2vmin;background:var(--ks);overflow:hidden}
+.tv-bar i{display:block;height:100%;border-radius:2vmin;background:var(--coin)}
+.tv-goal.ready span{color:var(--done)}
+.tv-goal.ready .tv-bar i{background:var(--done)}
+.tv-sub{font-family:var(--display);font-weight:600;font-size:3.4vmin;margin-top:.5vmin}
+.tv-chips{display:grid;grid-template-columns:repeat(9,1fr);gap:1.1vmin}
+.chip{position:relative;aspect-ratio:1;max-height:9vmin;border-radius:2vmin;background:#eef1f8;display:grid;place-items:center;font-size:4.6vmin;opacity:.4;filter:grayscale(1)}
+.chip.on{opacity:1;filter:none;background:var(--done-soft);box-shadow:inset 0 0 0 .5vmin var(--done)}
+.chip b{position:absolute;right:-.8vmin;bottom:-.8vmin;font-size:2.2vmin;line-height:1;background:var(--done);color:#fff;border-radius:2vmin;padding:.4vmin .8vmin}
+@media (orientation:portrait){.tv-kids{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.tv-coin.bump{animation:none}}
 @media (prefers-reduced-motion:reduce){.pop{animation:none;opacity:0}.bar i,.toast{transition:none}}
 @media (max-width:420px){.card .txt{font-size:16.5px}.day{font-size:14px}.jar h1{font-size:24px}}
 </style>
@@ -135,10 +167,11 @@ body.tiles .card:not(.wide) .step button{width:34px;height:34px;font-size:20px}
   <div class="kids" id="kids"></div>
   <section class="jar" id="jar" aria-live="polite"></section>
   <nav class="days" id="days" aria-label="Day of the week"></nav>
-  <div class="viewbar"><span>Show jobs</span><div class="seg" role="group" aria-label="Job layout"><button type="button" data-act="view" data-v="list">☰ List</button><button type="button" data-act="view" data-v="tiles">▦ 2 per row</button></div></div>
+  <div class="viewbar"><div class="seg" role="group" aria-label="Job layout"><button type="button" data-act="view" data-v="list">☰ List</button><button type="button" data-act="view" data-v="tiles">▦ 2 per row</button></div><button type="button" class="tvbtn" data-act="tv">📺 TV scoreboard</button></div>
   <main id="main"></main>
   <button class="sync" id="sync" type="button"></button>
 </div>
+<section class="tv" id="tv" aria-live="polite"></section>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -229,6 +262,7 @@ function setSync(s){
   var el=document.getElementById('sync'); if(!el) return;
   el.className='sync '+s;
   el.textContent={on:'Live on all devices',off:'Offline, will sync when back online',none:'Only on this device · tap to link',wait:'Connecting…'}[s];
+  if(typeof renderTV==='function') renderTV();
 }
 function save(k){
   try{localStorage.setItem('tt-'+k+'-'+weekKey,JSON.stringify(state[k]));}catch(e){}
@@ -347,7 +381,65 @@ function render(){
     '<div class="card counter'+(weekend?'':' locked')+(d.hours?' done':'')+'"><span class="pic">📱</span><span class="txt">1 hour of iPad or YouTube<small>'+(weekend?'Saturday and Sunday only':'Only on Saturday and Sunday')+'</small></span><span class="badge">'+HOUR+'</span><span class="step"><button data-act="hours" data-d="-1" aria-label="One less hour"'+(d.hours?'':' disabled')+'>−</button><output>'+(d.hours||0)+'</output><button data-act="hours" data-d="1" aria-label="One more hour"'+(weekend?'':' disabled')+'>+</button></span></div>'+
     '</div></div>';
   document.getElementById('main').innerHTML=html;
+  renderTV();
 }
+
+/* ---------- TV scoreboard ---------- */
+var tvOn=false, tvLast={}, tvBump={}, tvHTML='', wakeLock=null;
+var FULLDAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function goalHTML(icon,need,left,doneText,readyText,waitText){
+  if(doneText) return '<div class="tv-goal ready"><span>'+icon+' '+doneText+'</span></div>';
+  var pct=Math.min(100,Math.round(left/need*100));
+  if(left>=need) return '<div class="tv-goal ready"><span>'+icon+' '+readyText+'</span><div class="tv-bar"><i style="width:100%"></i></div></div>';
+  var more=need-left;
+  return '<div class="tv-goal"><span>'+icon+' '+more+' more '+(more===1?'token':'tokens')+' '+waitText+'</span><div class="tv-bar"><i style="width:'+pct+'%"></i></div></div>';
+}
+function renderTV(){
+  if(!tvOn) return;
+  var el=document.getElementById('tv'), sync=document.getElementById('sync');
+  var weekend=todayIdx>=5, html='';
+  html+='<header class="tv-head"><div class="tv-day">'+FULLDAYS[todayIdx]+', '+MONTHS[now.getMonth()]+' '+now.getDate()+'</div>'+
+    (sync&&!sync.hidden?'<span class="'+sync.className+'">'+esc(sync.textContent)+'</span>':'')+
+    '<button class="tv-exit" data-act="tv" aria-label="Leave TV scoreboard">✕</button></header><div class="tv-kids">';
+  Object.keys(KIDS).forEach(function(k){
+    var T=totals(k), left=Math.max(T.left,0), d=peek(k,todayIdx), today=earnedDay(k,todayIdx);
+    if(tvLast[k]!=null&&left>tvLast[k]) tvBump[k]=Date.now()+900;
+    tvLast[k]=left;
+    var bump=Date.now()<(tvBump[k]||0);
+    var jobs=JOBS.filter(function(j){return applies(j,k,todayIdx);}), doneCount=0;
+    var chips=jobs.map(function(j){
+      var n=j.count?(+d.jobs[j.id]||0):(d.jobs[j.id]?1:0); if(n) doneCount++;
+      return '<span class="chip'+(n?' on':'')+'" role="img" aria-label="'+esc(j.t)+(n?' done':' not done yet')+'">'+j.e+(j.count&&n>1?'<b>×'+n+'</b>':'')+'</span>';
+    }).join('');
+    html+='<section class="tv-kid '+k+'">'+
+      '<div class="tv-name"><span class="tv-av">'+KIDS[k].init+'</span>'+KIDS[k].name+'</div>'+
+      '<div class="tv-coinrow"><div class="tv-coin'+(bump?' bump':'')+'">'+left+'</div>'+
+        '<div class="tv-left">'+(left===1?'token':'tokens')+' to spend<small>Today +'+today+' · This week earned '+T.e+', spent '+T.s+'</small></div></div>'+
+      goalHTML('🍪',TREAT,left,d.treat?'Treat enjoyed today':'','Treat ready!','for a treat')+
+      goalHTML('📱',HOUR,left,'',weekend?'iPad hour ready!':'iPad hour saved for the weekend!',weekend?'for an iPad hour':'for a weekend iPad hour')+
+      '<div class="tv-sub">Jobs today: '+doneCount+' of '+jobs.length+'</div>'+
+      '<div class="tv-chips">'+chips+'</div>'+
+    '</section>';
+  });
+  html+='</div>';
+  if(html!==tvHTML){ tvHTML=html; el.innerHTML=html; }
+}
+function keepAwake(on){
+  // The iPad must stay awake or AirPlay mirroring stops.
+  if(on&&navigator.wakeLock&&document.visibilityState==='visible'){
+    navigator.wakeLock.request('screen').then(function(l){wakeLock=l;}).catch(function(){});
+  }else if(!on&&wakeLock){ wakeLock.release().catch(function(){}); wakeLock=null; }
+}
+function setTV(on){
+  tvOn=on; tvLast={}; tvBump={}; tvHTML='';
+  try{ if(on) localStorage.setItem('tt-tv','1'); else localStorage.removeItem('tt-tv'); }catch(e){}
+  document.body.classList.toggle('tvmode',on);
+  keepAwake(on);
+  if(on) renderTV(); else window.scrollTo(0,0);
+}
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&tvOn) setTV(false); });
+document.addEventListener('visibilitychange',function(){ if(tvOn&&document.visibilityState==='visible') keepAwake(true); });
 
 /* ---------- actions ---------- */
 document.addEventListener('click',function(ev){
@@ -355,6 +447,7 @@ document.addEventListener('click',function(ev){
   var act=b.getAttribute('data-act'), d, T;
   if(act==='kid'){kid=b.getAttribute('data-k'); try{localStorage.setItem('tt-kid',kid);}catch(e){} render(); return;}
   if(act==='day'){day=+b.getAttribute('data-i'); render(); return;}
+  if(act==='tv'){setTV(!tvOn); return;}
   if(act==='view'){view=b.getAttribute('data-v'); try{localStorage.setItem('tt-view',view);}catch(e){} applyView(); return;}
   d=dd(kid,day);
   var el=b, plus=null;
@@ -397,7 +490,10 @@ function applyView(){
 }
 applyView();
 render();
+try{ if(localStorage.getItem('tt-tv')==='1') setTV(true); }catch(e){}
 connect();
+// A scoreboard left on all night never goes to the background, so also check the date every minute.
+setInterval(function(){ if(new Date().toDateString()!==now.toDateString()) location.reload(); },60000);
 </script>
 </body>
 </html>
