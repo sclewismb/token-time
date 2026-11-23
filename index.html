@@ -388,7 +388,23 @@ window.addEventListener('hashchange',function(){
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState!=='visible') return;
   var n=new Date(); if(n.toDateString()!==now.toDateString()) location.reload();
+  else checkForUpdate();
 });
+/* New versions of the app: a home screen app can stay open for days, and GitHub Pages lets a device
+   reuse its copy for 10 minutes. Compare the server's Last-Modified with this page's; if newer,
+   refresh the cached copy and reload into it. sessionStorage stops a reload loop. */
+var loadedAt=Date.parse(document.lastModified)||0, lastCheck=0;
+function checkForUpdate(){
+  if(!loadedAt||!window.fetch||Date.now()-lastCheck<30000) return;
+  lastCheck=Date.now();
+  var url=location.pathname;
+  fetch(url+'?check='+Date.now(),{cache:'no-store'}).then(function(r){
+    var lm=Date.parse(r.headers.get('last-modified')||'');
+    if(!r.ok||!lm||lm<=loadedAt+1000) return;
+    try{ if(sessionStorage.getItem('tt-updated-to')===String(lm)) return; sessionStorage.setItem('tt-updated-to',String(lm)); }catch(e){}
+    return fetch(url,{cache:'reload'}).then(function(){ location.reload(); });
+  }).catch(function(){});
+}
 
 /* ---------- feedback ---------- */
 var toastTimer;
@@ -612,6 +628,9 @@ try{ if(localStorage.getItem('tt-tv')==='1') setTV(true); }catch(e){}
 connect();
 // A scoreboard left on all night never goes to the background, so also check the date every minute.
 setInterval(function(){ if(new Date().toDateString()!==now.toDateString()) location.reload(); },60000);
+// Check for a newer app now (this copy may have come from the cache) and, on the TV, every 15 minutes.
+checkForUpdate();
+setInterval(function(){ if(tvOn) checkForUpdate(); },900000);
 </script>
 </body>
 </html>
