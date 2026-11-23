@@ -7,7 +7,7 @@ A single-file web app (`index.html`, no build step, no dependencies except Googl
 - Routine jobs are 1 token. Other jobs are 2 tokens. Counter jobs can be done several times a day.
 - Treat: 5 tokens, max 1 per day, any day.
 - iPad or YouTube: 10 tokens per hour, Saturday and Sunday only.
-- Tokens do not carry over. The week starts Monday and the app keys all data by the Monday date, so it resets itself.
+- Tokens do not carry over. The week starts Monday and the app keys all data by the Monday date, so it resets itself. Past weeks stay viewable and editable through the week bar and "Looking back".
 - Spending is blocked when the weekly balance is too low. Un-checking a job is blocked if it would push the balance below 0 (shows a toast).
 
 ## Jobs (see `JOBS` array at the top of the script)
@@ -23,13 +23,15 @@ Fields: `id`, `g` (group: morning, day, night, bonus), `e` (emoji picture), `t` 
 
 ## Data model
 ```
-state = { matilda: { days: { "0": { jobs:{id:true|number}, treat:bool, hours:number, extra:number }, ... "6": {...} } },
-          brooks:  { same } }
+store = { "matilda-2026-11-16": { days: { "0": { jobs:{id:true|number}, treat:bool, hours:number, extra:number }, ... "6": {...} } },
+          "brooks-2026-11-16":  { same }, ... one entry per kid per week }
+state = { matilda: store["matilda-<viewed week>"], brooks: store["brooks-<viewed week>"] }
 ```
+- Week history (added Nov 22, 2026): `store` holds every week, keyed `<kid>-<Monday date>` (same ids as localStorage `tt-…` and the Firestore docs). `curWeekKey` is this week; `weekKey` is the week on screen, changed by `setWeek()`; `bindWeek()` points `state` at it. The week bar (‹ › and "This week") moves between weeks; › and "This week" are disabled on the current week, and ‹ stops at `FIRST_WEEK` (2026-11-16) or the oldest week with entries. Past weeks are fully editable. "Looking back" lists up to 12 weeks newest first (weeks with entries plus the current and viewed week) with each kid's earned, spent and left; tapping one opens it. The "today" dot and the jar's next-goal line only show on the current week. The TV scoreboard always shows the current week.
 - Day index 0 to 6, Monday to Sunday. `fix()` normalizes missing fields; `peek()` reads without creating days; `dd()` reads and creates.
-- Totals: `earnedDay`, `spentDay`, `totals(kid)` (earned, spent, left).
-- Persistence: always mirrored to `localStorage` under `tt-<kid>-<weekStartISO>`, `tt-kid` and `tt-family`.
-- Sync (added Nov 16, 2026, replacing the claude.ai `db` sync): Firebase Firestore, doc `families/<family code>/weeks/<kid>-<weekStartISO>`. `save()` diffs the state against the last synced copy and sends only changed leaf fields with `updateDoc` (FieldPath segments), so two people tapping different jobs don't clobber each other. `onSnapshot` replaces local state with the doc (Firestore includes pending local writes, so no echo guard is needed). Offline cache is IndexedDB via `persistentLocalCache`.
+- Totals: `earnedDay`, `spentDay`, `totals(kid, weekData?)` (earned, spent, left); the optional week data defaults to the viewed week.
+- Persistence: every week is mirrored to `localStorage` under `tt-<kid>-<weekStartISO>`, plus `tt-kid`, `tt-view`, `tt-tv` and `tt-family`. All `tt-<kid>-<date>` keys are loaded into `store` on start.
+- Sync (added Nov 16, 2026, replacing the claude.ai `db` sync): Firebase Firestore, docs `families/<family code>/weeks/<kid>-<weekStartISO>`. Since Nov 22, 2026 one `onSnapshot` listens to the whole `weeks` collection (rules allow `list`), so past weeks and Looking back stay live. `save()` diffs the viewed week against its last synced copy and sends only changed leaf fields with `updateDoc` (FieldPath segments), so two people tapping different jobs don't clobber each other; a week with no doc yet is created with `setDoc` merge. After the first server answer, weeks that exist only in this device's localStorage are uploaded once. Offline cache is IndexedDB via `persistentLocalCache`.
 - The family code is a 32-character random secret, read from `#family=` in the URL or pasted via the sync label, and stored in `localStorage`. It is not in the repo; the full link is in the git-ignored `family-link.txt`. `firestore.rules` only allows get/list/create/update under a code of 20+ characters, with kid-week doc names and a `days` map. No deletes.
 - The manifest has no `start_url` on purpose, so an iPhone saved to the home screen from the family link keeps the code.
 - The app reloads when it returns to the foreground on a new day, so the week resets even if it was never closed.

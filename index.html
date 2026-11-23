@@ -64,6 +64,31 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .bar{height:14px;border-radius:9px;background:rgba(255,255,255,.28);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--coin);border-radius:9px;transition:width .3s}
 
+/* week bar */
+.weekbar{display:flex;align-items:center;gap:8px;margin-bottom:-6px}
+.wk-arrow{flex:none;width:42px;height:42px;border-radius:50%;background:var(--card);border:3px solid var(--line);font-family:var(--display);font-weight:700;font-size:26px;line-height:1;color:var(--ink);padding-bottom:3px}
+.wk-arrow:disabled{opacity:.3;cursor:default}
+.wk-label{flex:1;min-width:0;text-align:center;line-height:1.15}
+.wk-label b{display:block;font-family:var(--display);font-weight:600;font-size:19px}
+.wk-label small{font-size:13.5px;color:var(--muted)}
+.weekbar.past .wk-label small{color:var(--accent)}
+.wk-now{flex:none;padding:8px 12px;border-radius:14px;background:var(--accent);color:#fff;font-size:15px}
+.wk-now:disabled{background:var(--card);color:var(--muted);border:3px solid var(--line);padding:5px 9px;cursor:default}
+
+/* looking back */
+.history{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.hist{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;padding:10px 14px;border-radius:18px;background:var(--card);border:3px solid var(--line)}
+.hist[aria-current="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.hist-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.hist-top b{font-family:var(--display);font-weight:600;font-size:17px}
+.hist-top span{font-size:13px;color:var(--muted)}
+.hist-row{display:grid;grid-template-columns:minmax(0,1.2fr) repeat(3,minmax(0,1fr));gap:6px;align-items:center;font-size:14px}
+.hist-row .who{display:flex;align-items:center;gap:6px;font-weight:800;min-width:0}
+.hist-row .who i{flex:none;width:10px;height:10px;border-radius:50%;background:#7a4dff}
+.hist-row .who.brooks i{background:#0a8fe0}
+.hist-row span{white-space:nowrap}
+.hist-row em{font-style:normal;color:var(--muted);font-weight:700}
+
 /* days */
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .day{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;border-radius:16px;background:var(--card);border:3px solid var(--line);font-family:var(--display);font-weight:600;font-size:16px;position:relative}
@@ -165,10 +190,12 @@ body.tvmode .tv{display:flex;flex-direction:column;min-height:100vh;min-height:1
 <body data-kid="matilda">
 <div class="wrap">
   <div class="kids" id="kids"></div>
+  <nav class="weekbar" id="weekbar" aria-label="Week"></nav>
   <section class="jar" id="jar" aria-live="polite"></section>
   <nav class="days" id="days" aria-label="Day of the week"></nav>
   <div class="viewbar"><div class="seg" role="group" aria-label="Job layout"><button type="button" data-act="view" data-v="list">☰ List</button><button type="button" data-act="view" data-v="tiles">▦ 2 per row</button></div><button type="button" class="tvbtn" data-act="tv">📺 TV scoreboard</button></div>
   <main id="main"></main>
+  <section class="history" id="history" aria-label="Looking back"></section>
   <button class="sync" id="sync" type="button"></button>
 </div>
 <section class="tv" id="tv" aria-live="polite"></section>
@@ -209,16 +236,44 @@ var TREAT=5, HOUR=10;
 function pad(n){return (n<10?'0':'')+n}
 var now=new Date();
 var todayIdx=(now.getDay()+6)%7;
-var ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-todayIdx);
-var weekKey=ws.getFullYear()+'-'+pad(ws.getMonth()+1)+'-'+pad(ws.getDate());
+function keyOf(dt){return dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate());}
+function wkDate(w){var p=w.split('-'); return new Date(+p[0],+p[1]-1,+p[2]);}
+function addWeeks(w,n){var d=wkDate(w); return keyOf(new Date(d.getFullYear(),d.getMonth(),d.getDate()+7*n));}
+var curWeekKey=keyOf(new Date(now.getFullYear(),now.getMonth(),now.getDate()-todayIdx)); // this week's Monday
+var weekKey=curWeekKey;   // the week on screen
+var FIRST_WEEK='2026-11-16'; // the token system started this week; ‹ stops here unless older data exists
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function weekLabel(w){
+  var a=wkDate(w), b=new Date(a.getFullYear(),a.getMonth(),a.getDate()+6);
+  var s=MON[a.getMonth()]+' '+a.getDate()+' – '+(b.getMonth()!==a.getMonth()?MON[b.getMonth()]+' ':'')+b.getDate();
+  return b.getFullYear()!==now.getFullYear()?s+', '+b.getFullYear():s;
+}
+function weeksAgo(w){return Math.round((wkDate(curWeekKey)-wkDate(w))/6048e5);}
 
-/* ---------- state ---------- */
+/* ---------- state ----------
+   store holds every week, keyed "<kid>-<Monday date>" (the same keys as localStorage "tt-…" and the
+   Firestore docs). state.matilda / state.brooks always point at the week on screen. */
 var kid='matilda', day=todayIdx;
-var state={matilda:{days:{}},brooks:{days:{}}};
+var store={}, state={};
+var WEEK_ID=/^(matilda|brooks)-(\d{4}-\d{2}-\d{2})$/;
 try{var lk=localStorage.getItem('tt-kid'); if(lk&&KIDS[lk]) kid=lk;}catch(e){}
-['matilda','brooks'].forEach(function(k){
-  try{var raw=localStorage.getItem('tt-'+k+'-'+weekKey); if(raw){var v=JSON.parse(raw); if(v&&v.days) state[k]=v;}}catch(e){}
-});
+try{
+  for(var si=0;si<localStorage.length;si++){
+    var sk=localStorage.key(si), sm=/^tt-(.+)$/.exec(sk||'');
+    if(sm&&WEEK_ID.test(sm[1])){ var sv=JSON.parse(localStorage.getItem(sk)); if(sv&&sv.days&&typeof sv.days==='object') store[sm[1]]={days:sv.days}; }
+  }
+}catch(e){}
+function bindWeek(){
+  Object.keys(KIDS).forEach(function(k){ var id=k+'-'+weekKey; if(!store[id]) store[id]={days:{}}; state[k]=store[id]; });
+}
+bindWeek();
+function weekData(k,w){return store[k+'-'+w]||{days:{}};}
+function hasEntries(D){
+  return Object.keys((D&&D.days)||{}).some(function(i){
+    var d=D.days[i]||{}, J=d.jobs||{};
+    return d.treat||+d.hours||+d.extra||Object.keys(J).some(function(id){return J[id]===true||+J[id]>0;});
+  });
+}
 function fix(d){
   if(!d.jobs) d.jobs={}; if(!d.treat) d.treat=false; d.hours=+d.hours||0; d.extra=+d.extra||0;
   // Jobs that became counters (dishes, Nov 2026) may still hold an old checkmark: true -> 1, false -> 0.
@@ -226,12 +281,13 @@ function fix(d){
   return d;
 }
 function dd(k,i){var D=state[k].days; if(!D[i]) D[i]={}; return fix(D[i]);}
-function peek(k,i){return fix(state[k].days[i]||{});}
+// D (optional) is a week's data; it defaults to the week on screen.
+function peek(k,i,D){D=D||state[k]; return fix((D.days&&D.days[i])||{});}
 function applies(j,k,i){return !j.only||(j.only===k&&j.days.indexOf(i)>-1);}
 function val(j,d){var x=d.jobs[j.id]; if(j.count) return (+x||0)*j.v; return x?j.v:0;}
-function earnedDay(k,i){var d=peek(k,i),t=d.extra; JOBS.forEach(function(j){if(applies(j,k,i)) t+=val(j,d);}); return t;}
-function spentDay(k,i){var d=peek(k,i); return (d.treat?TREAT:0)+d.hours*HOUR;}
-function totals(k){var e=0,s=0; for(var i=0;i<7;i++){e+=earnedDay(k,i); s+=spentDay(k,i);} return {e:e,s:s,left:e-s};}
+function earnedDay(k,i,D){var d=peek(k,i,D),t=d.extra; JOBS.forEach(function(j){if(applies(j,k,i)) t+=val(j,d);}); return t;}
+function spentDay(k,i,D){var d=peek(k,i,D); return (d.treat?TREAT:0)+d.hours*HOUR;}
+function totals(k,D){var e=0,s=0; for(var i=0;i<7;i++){e+=earnedDay(k,i,D); s+=spentDay(k,i,D);} return {e:e,s:s,left:e-s};}
 
 /* ---------- saving: Firebase Firestore keeps every phone and iPad in step ----------
    Data lives at families/<family code>/weeks/<kid>-<week start>. The family code is a long
@@ -253,7 +309,7 @@ function readFamily(s){var m=/(?:family=)?([A-Za-z0-9_-]{20,})\s*$/.exec(s||'');
   var h=/[#&]family=([A-Za-z0-9_-]{20,})/.exec(location.hash);
   try{ if(h) localStorage.setItem('tt-family',h[1]); FAMILY=h?h[1]:localStorage.getItem('tt-family'); }catch(e){ FAMILY=h?h[1]:null; }
 })();
-var F=null, refs={}, synced={matilda:null,brooks:null};
+var F=null, fdb=null, ready=false, uploaded=false, synced={}; // synced: last server copy per week id
 function clone(o){return JSON.parse(JSON.stringify(o));}
 function leaves(o,pre,out){
   Object.keys(o||{}).forEach(function(key){var v=o[key], p=pre.concat(key);
@@ -266,16 +322,19 @@ function setSync(s){
   el.textContent={on:'Live on all devices',off:'Offline, will sync when back online',none:'Only on this device · tap to link',wait:'Connecting…'}[s];
   if(typeof renderTV==='function') renderTV();
 }
+function docRef(id){return F.doc(fdb,'families',FAMILY,'weeks',id);}
 function save(k){
-  try{localStorage.setItem('tt-'+k+'-'+weekKey,JSON.stringify(state[k]));}catch(e){}
-  if(!F||!synced[k]) return;
+  var id=k+'-'+weekKey;
+  try{localStorage.setItem('tt-'+id,JSON.stringify(state[k]));}catch(e){}
+  if(!F||!ready) return;
+  var ref=docRef(id), full=clone(state[k]);
+  if(!synced[id]){ synced[id]=full; F.setDoc(ref,full,{merge:true}).catch(function(){}); return; } // first entry for that week
   // Send only the fields that changed, so two people tapping different jobs never overwrite each other.
-  var now=leaves(state[k],[],{}), was=leaves(synced[k],[],{}), args=[];
+  var now=leaves(state[k],[],{}), was=leaves(synced[id],[],{}), args=[];
   Object.keys(now).forEach(function(p){ if(was[p]!==now[p]) args.push(new F.FieldPath(...p.split('\u0001')), now[p]); });
   Object.keys(was).forEach(function(p){ if(!(p in now)) args.push(new F.FieldPath(...p.split('\u0001')), F.deleteField()); });
-  synced[k]=clone(state[k]);
+  synced[id]=clone(state[k]);
   if(!args.length) return;
-  var ref=refs[k], full=clone(state[k]);
   F.updateDoc.apply(null,[ref].concat(args)).catch(function(){ F.setDoc(ref,full,{merge:true}).catch(function(){}); });
 }
 function connect(){
@@ -286,24 +345,30 @@ function connect(){
     var A=m[0], S=m[1], app=A.initializeApp(FIREBASE), db;
     try{ db=S.initializeFirestore(app,{localCache:S.persistentLocalCache({tabManager:S.persistentMultipleTabManager()})}); }
     catch(e){ db=S.getFirestore(app); }
-    F=S;
-    ['matilda','brooks'].forEach(function(k){
-      refs[k]=S.doc(db,'families',FAMILY,'weeks',k+'-'+weekKey);
-      S.onSnapshot(refs[k],{includeMetadataChanges:true},function(snap){
-        setSync(snap.metadata.fromCache?'off':'on');
-        if(!snap.exists()){
-          if(snap.metadata.fromCache) return; // wait for the server before treating the week as new
-          synced[k]=clone(state[k]);
-          S.setDoc(refs[k],clone(state[k]),{merge:true}).catch(function(){});
-          return;
-        }
-        var v=snap.data();
-        state[k]={days:v.days&&typeof v.days==='object'?v.days:{}};
-        synced[k]=clone(state[k]);
-        try{localStorage.setItem('tt-'+k+'-'+weekKey,JSON.stringify(state[k]));}catch(e){}
-        render();
-      },function(){ setSync('off'); });
-    });
+    F=S; fdb=db;
+    // One listener for every week of this family (two small docs per week), so past weeks stay live too.
+    S.onSnapshot(S.collection(db,'families',FAMILY,'weeks'),{includeMetadataChanges:true},function(snap){
+      setSync(snap.metadata.fromCache?'off':'on');
+      ready=true;
+      snap.docChanges().forEach(function(ch){
+        var id=ch.doc.id; if(!WEEK_ID.test(id)) return;
+        if(ch.type==='removed'){ delete synced[id]; return; }
+        var v=ch.doc.data();
+        store[id]={days:v.days&&typeof v.days==='object'?v.days:{}};
+        synced[id]=clone(store[id]);
+        try{localStorage.setItem('tt-'+id,JSON.stringify(store[id]));}catch(e){}
+      });
+      // Once the server has answered, upload weeks that so far exist only on this device.
+      if(!snap.metadata.fromCache&&!uploaded){
+        uploaded=true;
+        Object.keys(store).forEach(function(id){
+          if(synced[id]||!WEEK_ID.test(id)||!hasEntries(store[id])) return;
+          synced[id]=clone(store[id]);
+          S.setDoc(docRef(id),clone(store[id]),{merge:true}).catch(function(){});
+        });
+      }
+      bindWeek(); render();
+    },function(){ setSync('off'); });
   }).catch(function(){ setSync('off'); });
 }
 document.addEventListener('click',function(ev){
@@ -342,18 +407,22 @@ function render(){
     return '<button class="kid" data-k="'+k+'" data-act="kid" aria-pressed="'+(k===kid)+'"><span class="av">'+KIDS[k].init+'</span>'+KIDS[k].name+'</button>';
   }).join('');
 
+  var isCur=weekKey===curWeekKey;
+  renderWeekBar(isCur);
   var T=totals(kid), left=Math.max(T.left,0);
   var coins=''; for(var c=0;c<Math.min(left,40);c++) coins+='<span class="mini"></span>';
   var target=left<TREAT?TREAT:(left<HOUR?HOUR:0);
   var goal='';
-  if(target){goal='<div class="goal"><span>'+(target-left)+' more '+(target-left===1?'token':'tokens')+' for '+(target===TREAT?'a treat':'1 hour of iPad or YouTube')+'</span><div class="bar"><i style="width:'+Math.round(left/target*100)+'%"></i></div></div>';}
+  if(!isCur) goal=''; // tokens don't carry over, so no "next goal" for a past week
+  else if(target){goal='<div class="goal"><span>'+(target-left)+' more '+(target-left===1?'token':'tokens')+' for '+(target===TREAT?'a treat':'1 hour of iPad or YouTube')+'</span><div class="bar"><i style="width:'+Math.round(left/target*100)+'%"></i></div></div>';}
   else goal='<div class="goal"><span>You have enough for a treat and an iPad hour!</span></div>';
   document.getElementById('jar').innerHTML=
-    '<div class="jar-top"><div class="bigcoin">'+left+'</div><div><h1>'+KIDS[kid].name+', you have '+left+' '+(left===1?'token':'tokens')+'</h1><p>Earned '+T.e+' this week · Spent '+T.s+'</p></div></div>'+
+    '<div class="jar-top"><div class="bigcoin">'+left+'</div><div><h1>'+(isCur?KIDS[kid].name+', you have '+left+' '+(left===1?'token':'tokens'):KIDS[kid].name+' had '+left+' '+(left===1?'token':'tokens')+' left')+'</h1><p>Earned '+T.e+(isCur?' this week':'')+' · Spent '+T.s+'</p></div></div>'+
     '<div class="stack">'+coins+'</div>'+goal;
 
   document.getElementById('days').innerHTML=DAYS.map(function(n,i){
-    return '<button class="day'+(i===todayIdx?' today':'')+'" data-act="day" data-i="'+i+'" aria-pressed="'+(i===day)+'" aria-label="'+n+(i===todayIdx?' (today)':'')+'">'+n+'<small>+'+earnedDay(kid,i)+'</small></button>';
+    var isToday=isCur&&i===todayIdx; // the "today" dot only belongs on the current week
+    return '<button class="day'+(isToday?' today':'')+'" data-act="day" data-i="'+i+'" aria-pressed="'+(i===day)+'" aria-label="'+n+(isToday?' (today)':'')+'">'+n+'<small>+'+earnedDay(kid,i)+'</small></button>';
   }).join('');
 
   var d=dd(kid,day), html='';
@@ -383,7 +452,50 @@ function render(){
     '<div class="card counter'+(weekend?'':' locked')+(d.hours?' done':'')+'"><span class="pic">📱</span><span class="txt">1 hour of iPad or YouTube<small>'+(weekend?'Saturday and Sunday only':'Only on Saturday and Sunday')+'</small></span><span class="badge">'+HOUR+'</span><span class="step"><button data-act="hours" data-d="-1" aria-label="One less hour"'+(d.hours?'':' disabled')+'>−</button><output>'+(d.hours||0)+'</output><button data-act="hours" data-d="1" aria-label="One more hour"'+(weekend?'':' disabled')+'>+</button></span></div>'+
     '</div></div>';
   document.getElementById('main').innerHTML=html;
+  renderHistory();
   renderTV();
+}
+
+/* ---------- weeks ---------- */
+function oldestWeek(){
+  var w=FIRST_WEEK;
+  Object.keys(store).forEach(function(id){ var m=WEEK_ID.exec(id); if(m&&m[2]<w&&hasEntries(store[id])) w=m[2]; });
+  return w;
+}
+function renderWeekBar(isCur){
+  var n=weeksAgo(weekKey), bar=document.getElementById('weekbar');
+  bar.className='weekbar'+(isCur?'':' past');
+  bar.innerHTML=
+    '<button class="wk-arrow" data-act="wk" data-n="-1" aria-label="Previous week"'+(weekKey<=oldestWeek()?' disabled':'')+'>‹</button>'+
+    '<div class="wk-label"><b>'+weekLabel(weekKey)+'</b><small>'+(isCur?'This week':(n===1?'Last week':n+' weeks ago')+' · you can still edit it')+'</small></div>'+
+    '<button class="wk-arrow" data-act="wk" data-n="1" aria-label="Next week"'+(isCur?' disabled':'')+'>›</button>'+
+    '<button class="wk-now" data-act="wk" data-n="0"'+(isCur?' disabled':'')+'>This week</button>';
+}
+function setWeek(w){
+  if(w>curWeekKey) w=curWeekKey;
+  weekKey=w; bindWeek();
+  if(w===curWeekKey) day=todayIdx;
+  render();
+}
+function renderHistory(){
+  // Weeks with any entries, plus the current and the viewed week; newest first, up to 12.
+  var seen={}; seen[curWeekKey]=1; seen[weekKey]=1;
+  Object.keys(store).forEach(function(id){ var m=WEEK_ID.exec(id); if(m&&m[2]<=curWeekKey&&hasEntries(store[id])) seen[m[2]]=1; });
+  var weeks=Object.keys(seen).sort().reverse(), list=weeks.slice(0,12);
+  if(list.indexOf(weekKey)<0) list[list.length-1]=weekKey; // keep the open week listed even if it's older
+  var html='<h2>Looking back</h2>';
+  list.forEach(function(w){
+    var n=weeksAgo(w);
+    html+='<button class="hist" data-act="openwk" data-w="'+w+'" aria-current="'+(w===weekKey)+'">'+
+      '<div class="hist-top"><b>'+weekLabel(w)+'</b><span>'+(n===0?'This week':n===1?'Last week':n+' weeks ago')+'</span></div>';
+    Object.keys(KIDS).forEach(function(k){
+      var T=totals(k,weekData(k,w));
+      html+='<div class="hist-row"><span class="who '+k+'"><i></i>'+KIDS[k].name+'</span>'+
+        '<span><em>earned</em> '+T.e+'</span><span><em>spent</em> '+T.s+'</span><span><em>left</em> '+Math.max(T.left,0)+'</span></div>';
+    });
+    html+='</button>';
+  });
+  document.getElementById('history').innerHTML=html;
 }
 
 /* ---------- TV scoreboard ---------- */
@@ -405,7 +517,8 @@ function renderTV(){
     (sync&&!sync.hidden?'<span class="'+sync.className+'">'+esc(sync.textContent)+'</span>':'')+
     '<button class="tv-exit" data-act="tv" aria-label="Leave TV scoreboard">✕</button></header><div class="tv-kids">';
   Object.keys(KIDS).forEach(function(k){
-    var T=totals(k), left=Math.max(T.left,0), d=peek(k,todayIdx), today=earnedDay(k,todayIdx);
+    var D=weekData(k,curWeekKey); // always this week, whatever week is open on the device
+    var T=totals(k,D), left=Math.max(T.left,0), d=peek(k,todayIdx,D), today=earnedDay(k,todayIdx,D);
     if(tvLast[k]!=null&&left>tvLast[k]) tvBump[k]=Date.now()+900;
     tvLast[k]=left;
     var bump=Date.now()<(tvBump[k]||0);
@@ -450,6 +563,8 @@ document.addEventListener('click',function(ev){
   if(act==='kid'){kid=b.getAttribute('data-k'); try{localStorage.setItem('tt-kid',kid);}catch(e){} render(); return;}
   if(act==='day'){day=+b.getAttribute('data-i'); render(); return;}
   if(act==='tv'){setTV(!tvOn); return;}
+  if(act==='wk'){var wn=+b.getAttribute('data-n'); setWeek(wn===0?curWeekKey:addWeeks(weekKey,wn)); return;}
+  if(act==='openwk'){setWeek(b.getAttribute('data-w')); window.scrollTo(0,0); return;}
   if(act==='view'){view=b.getAttribute('data-v'); try{localStorage.setItem('tt-view',view);}catch(e){} applyView(); return;}
   d=dd(kid,day);
   var el=b, plus=null;
