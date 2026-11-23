@@ -191,7 +191,9 @@ var JOBS=[
  {id:'laundry',g:'day',e:'🧺',t:'Clothes in the laundry basket',v:1},
  {id:'jacket',g:'day',e:'🧥',t:'Hang up your jacket',v:1},
  {id:'cleanup',g:'day',e:'🧸',t:'Clean up after each activity',s:'1 token for every activity you clean up',v:1,count:true},
+ {id:'flush',g:'day',e:'🚽',t:'Flush the toilet',s:'1 token every time you flush',v:1,count:true},
  {id:'hockey',g:'day',e:'🏒',t:'Get ready for hockey',s:'Water bottle, equipment in the bag, stick',v:1,only:'matilda',days:[5,6]},
+ {id:'break',g:'day',e:'🛝',t:'Have a good second break',s:'At school',v:3,only:'brooks',days:[0,1,2,3,4]},
  {id:'teethPm',g:'night',e:'🪥',t:'Brush your teeth',s:'Night',v:1},
  {id:'sleep',g:'night',e:'🌙',t:'Go to bed nicely',v:1},
  {id:'bins',g:'bonus',e:'🗑️',t:'Garbage bins to the curb and back up',v:2},
@@ -419,7 +421,7 @@ function renderTV(){
       goalHTML('🍪',TREAT,left,d.treat?'Treat enjoyed today':'','Treat ready!','for a treat')+
       goalHTML('📱',HOUR,left,'',weekend?'iPad hour ready!':'iPad hour saved for the weekend!',weekend?'for an iPad hour':'for a weekend iPad hour')+
       '<div class="tv-sub">Jobs today: '+doneCount+' of '+jobs.length+'</div>'+
-      '<div class="tv-chips">'+chips+'</div>'+
+      '<div class="tv-chips" style="grid-template-columns:repeat('+Math.max(9,Math.ceil(jobs.length/2))+',1fr)">'+chips+'</div>'+
     '</section>';
   });
   html+='</div>';
