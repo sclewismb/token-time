@@ -10,5 +10,16 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['days'])
         && request.resource.data.days is map;
     }
+    // Tire Log (github.com/sclewismb/tire-log): one log doc and one backup-date doc per family.
+    match /families/{family}/tirelog/{doc} {
+      allow get, list: if family.size() >= 20;
+      allow create, update: if family.size() >= 20
+        && ((doc == 'log'
+             && request.resource.data.keys().hasOnly(['entries', 'settings', 'specs'])
+             && request.resource.data.entries is list)
+          || (doc == 'backup'
+             && request.resource.data.keys().hasOnly(['last'])
+             && request.resource.data.last is string));
+    }
   }
 }
